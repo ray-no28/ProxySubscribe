@@ -3,7 +3,7 @@ package priv.ray.fetcher;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "priv.ray.fetcher")
 public class FetcherApplication {
 
     public static void main(String[] args) {
