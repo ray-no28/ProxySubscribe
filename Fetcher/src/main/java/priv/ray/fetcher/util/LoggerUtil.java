@@ -19,7 +19,7 @@ public class LoggerUtil {
     // 记录代理信息
     public static void logProxy(Proxy proxy) {
         if (logger.isInfoEnabled()) {
-            logger.info(proxy.toString());
+            logger.info("Find Proxy: "+proxy.toString());
         }
     }
 

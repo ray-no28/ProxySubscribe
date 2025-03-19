@@ -4,8 +4,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import priv.ray.fetcher.fetchers.impl.FetcherA;
+import priv.ray.fetcher.handler.ProxyParseHandler;
 import priv.ray.fetcher.model.Proxy;
 import priv.ray.fetcher.util.LoggerUtil;
+
+import java.util.List;
 
 @SpringBootTest
 class FetcherApplicationTests {
@@ -17,15 +20,10 @@ class FetcherApplicationTests {
     LoggerUtil logger;
 
     @Test
-    public void test1(){
-        Proxy proxy = new Proxy();
-        proxy.setHost("11.22.33.44");
-        logger.logProxy(proxy);
-    }
-    @Test
     public void test2(){
         FetcherA fetcherA = new FetcherA();
-        fetcherA.requestProxies();
+        List<Proxy> proxies = fetcherA.requestProxies();
+        System.out.println(ProxyParseHandler.toProxyLink(proxies.get(0)));
     }
 
 }

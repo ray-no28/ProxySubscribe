@@ -4,20 +4,15 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-import priv.ray.fetcher.fetchers.AbstractFetchers;
+import priv.ray.fetcher.fetchers.IFetchers;
+import priv.ray.fetcher.handler.ProxyParseHandler;
 import priv.ray.fetcher.model.Proxy;
 import priv.ray.fetcher.util.LoggerUtil;
 
-import javax.net.ssl.SSLServerSocket;
 import java.io.IOException;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -28,7 +23,7 @@ import java.util.stream.Collectors;
  * @changes:
  */
 
-public class FetcherA extends AbstractFetchers {
+public class FetcherA implements IFetchers {
     public LoggerUtil logger;
 
     private static final Pattern PROXY_URL_PATTERN = Pattern.compile(
@@ -40,9 +35,7 @@ public class FetcherA extends AbstractFetchers {
     @Override
     public List<Proxy> requestProxies() {
         List<String> subSites = getSubSites();
-        logger.logError(subSites.toString());
         List<String> allSub = getAllSub(subSites);
-        logger.logError(allSub.toString());
         List<Proxy> proxies = parseSubscription(allSub);
         System.err.println(proxies.size());
         return proxies;
@@ -68,15 +61,15 @@ public class FetcherA extends AbstractFetchers {
                 for (String line : decodedContent.split("\\r?\\n")) {
                     if (line.trim().isEmpty()) continue;
                     try {
-                        Proxy proxy = parseProxyLine(line.trim());
+                        Proxy proxy = ProxyParseHandler.parseProxyLink(line.trim());
                         logger.logProxy(proxy);
                         proxies.add(proxy);
                     } catch (Exception e) {
-//                        logger.logErrorProxy(line.trim(), e);
+                        logger.logErrorProxy(line.trim(), e);
                     }
                 }
             } catch (IOException e) {
-//                logger.logErrorUrl(url, e);
+                logger.logErrorUrl(url, e);
             }
 
         }
@@ -95,47 +88,7 @@ public class FetcherA extends AbstractFetchers {
     }
 
     // 解析单行代理信息
-    private Proxy parseProxyLine(String line) {
-        Proxy proxy = new Proxy();
 
-        // 分割协议部分（如 ss://）
-        String[] protocolSplit = line.split("://", 2);
-        if (protocolSplit.length != 2) throw new IllegalArgumentException("协议格式错误");
-        proxy.setProtocol(protocolSplit[0].toLowerCase());
-        String rightPart = protocolSplit[1];
-
-        // 提取备注并解码
-        int hashIndex = rightPart.lastIndexOf('#');
-        if (hashIndex != -1) {
-            String encodedRemark = rightPart.substring(hashIndex + 1);
-            proxy.setRemark(URLDecoder.decode(encodedRemark, StandardCharsets.UTF_8));
-            rightPart = rightPart.substring(0, hashIndex);
-        }
-
-        // 分割认证信息@主机端口
-        String[] authAndServer = rightPart.split("@", 2);
-        if (authAndServer.length != 2) throw new IllegalArgumentException("缺少@分隔符");
-
-        // 处理认证信息
-        String authInfo = authAndServer[0];
-        if ("ss".equals(proxy.getProtocol())) {
-            authInfo = new String(Base64.getDecoder().decode(authInfo));
-        }
-        proxy.setPassword(authInfo);
-
-        // 使用正则提取主机和端口
-        String serverPart = authAndServer[1];
-        Pattern hostPortPattern = Pattern.compile("^([^:]+):(\\d+)(?:[/?].*)?$");
-        Matcher matcher = hostPortPattern.matcher(serverPart);
-        if (matcher.find()) {
-            proxy.setHost(matcher.group(1));
-            proxy.setPort(Integer.parseInt(matcher.group(2)));
-        } else {
-            throw new IllegalArgumentException("主机/端口格式错误: " + serverPart);
-        }
-
-        return proxy;
-    }
 
 
     private List<String> getAllSub(List<String> subSites) {
@@ -158,7 +111,6 @@ public class FetcherA extends AbstractFetchers {
         return result;
     }
 
-
     private List<String> getSubSites() {
         Document doc = null;
         try {
@@ -168,7 +120,7 @@ public class FetcherA extends AbstractFetchers {
         }
         return doc.select(".xcblog-blog-url")
                 .stream()
-                .limit(3)
+                .limit(2)
                 .map(e -> {
                     String href = e.attr("href");
                     // 处理相对路径（如 "/subsite" 或 "subsite"）
