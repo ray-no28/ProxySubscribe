@@ -15,9 +15,11 @@ import lombok.Data;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+
 @Data
 public class Proxy {
-    private String protocol; // 协议类型（trojan、vless、ss）
+    private String protocol; // 协议类型（trojan、vless、ss、xmess、）
     private String address;  // 服务器地址
     private int port;        // 端口
     private String userInfo; // 用户信息（如密码、UUID）
@@ -90,5 +92,23 @@ public class Proxy {
         sb.append("}");
         return sb.toString();
     }
+    @Override
+    public boolean equals(Object obj) {
+        // 1. 检查是否是同一个对象
+        if (this == obj) return true;
+        // 2. 检查对象是否为 null 或者类型是否不匹配
+        if (obj == null || getClass() != obj.getClass()) return false;
+        // 3. 强制转换为 Proxy 类型
+        Proxy proxy = (Proxy) obj;
+        // 4. 比较 address 和 port 字段
+        return port == proxy.port && Objects.equals(address, proxy.address);
+    }
+    @Override
+    public int hashCode() {
+        // 使用 Objects.hash() 方法生成哈希值
+        return Objects.hash(address, port);
+    }
+
+
 
 }

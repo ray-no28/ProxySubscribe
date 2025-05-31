@@ -14,27 +14,21 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-/**
- * @author: Ray
- * @date: 2025/3/16 19:36
- * @desc:
- * @changes:
- */
-
-public class FetcherA implements IFetchers {
+public class FetcherB implements IFetchers {
     public LoggerUtil logger;
 
-   private String url="https://freevpnshare.github.io/";
-   private int timeout= 10000;
+    private String url = "https://vpnjichang.github.io/";
+    private int timeout = 10000;
 
     @Override
     public List<Proxy> requestProxies() {
         List<String> subSites = getSubSites();
-        System.out.println(subSites);
+        System.err.println(subSites);
         List<String> allSub = getAllSub(subSites);
-        System.out.println(allSub);
+        System.err.println(allSub);
         List<Proxy> proxies = parseSubscription(allSub);
 
         return proxies;
@@ -42,24 +36,18 @@ public class FetcherA implements IFetchers {
 
     public List<Proxy> parseSubscription(List<String> subUrl) {
         List<Proxy> proxies = new ArrayList<>();
-        for (String url : subUrl
-        ) {
+        for (String url : subUrl) {
             try {
-                // 1. 访问订阅链接获取内容
                 String content = Jsoup.connect(url)
                         .ignoreContentType(true)
                         .timeout(timeout)
                         .execute()
-                        .body()
+                        .body();
 
-                        ;
-
-                // 2. 判断是否为Base64编码并解码
                 String decodedContent = isBase64(content)
                         ? new String(Base64.getDecoder().decode(content))
                         : content;
 
-                // 3. 按行分割解析代理
                 for (String line : decodedContent.split("\\r?\\n")) {
                     if (line.trim().isEmpty()) continue;
                     try {
@@ -73,13 +61,10 @@ public class FetcherA implements IFetchers {
             } catch (IOException e) {
                 logger.logErrorUrl(url, e);
             }
-
         }
-
         return proxies;
     }
 
-    // 判断是否为Base64编码内容
     private boolean isBase64(String str) {
         try {
             Base64.getDecoder().decode(str);
@@ -89,24 +74,21 @@ public class FetcherA implements IFetchers {
         }
     }
 
-    // 解析单行代理信息
-
-
-
     private List<String> getAllSub(List<String> subSites) {
         List<String> result = new ArrayList<>();
+        String nodePattern = "^"+url+".+"+".txt$";
+        Pattern pattern = Pattern.compile(nodePattern);
+
         for (String site : subSites) {
             try {
-                // 使用 Jsoup 访问站点
                 Document doc = Jsoup.connect(site).timeout(timeout).get();
                 Elements ps = doc.select("p");
                 for (Element p : ps) {
-                    if (p.text().matches("^"+url+".+txt$" )) {
+                    if (pattern.matcher(p.text()).matches()) {
                         result.add(p.text());
                     }
                 }
             } catch (IOException e) {
-                // 处理异常（如站点无法访问）
                 logger.logErrorUrl(site, e);
             }
         }
@@ -114,25 +96,23 @@ public class FetcherA implements IFetchers {
     }
 
     private List<String> getSubSites() {
-        Document doc = null;
         try {
-            doc = Jsoup.connect(url).timeout(timeout).get();
+            Document doc = Jsoup.connect(url).timeout(timeout).get();
+            return doc.select(".xcblog-blog-url")
+                    .stream()
+                    .limit(2)
+                    .map(e -> {
+                        String href = e.attr("href");
+                        if (href.startsWith("/")) {
+                            return url + href.substring(1);
+                        } else {
+                            return url + href;
+                        }
+                    })
+                    .collect(Collectors.toList());
         } catch (IOException e) {
             logger.logErrorUrl(url, e);
             return new ArrayList<>();
         }
-        return doc.select(".xcblog-blog-url")
-                .stream()
-                .limit(2)
-                .map(e -> {
-                    String href = e.attr("href");
-                    // 处理相对路径（如 "/subsite" 或 "subsite"）
-                    if (href.startsWith("/")) {
-                        return url + href.substring(1);
-                    } else {
-                        return url + href;
-                    }
-                })
-                .collect(Collectors.toList());
     }
 }

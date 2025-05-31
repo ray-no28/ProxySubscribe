@@ -1,9 +1,9 @@
 package priv.ray.fetcher.handler;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
+import com.google.gson.*;
 import priv.ray.fetcher.model.Proxy;
 
+import java.lang.reflect.Type;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -17,6 +17,17 @@ import java.util.Map;
  * @changes:
  */
 public class ProxyParseHandler {
+
+    static Gson gson = new GsonBuilder()
+            .serializeNulls()
+            .registerTypeAdapter(String.class, new JsonDeserializer<String>() {
+                @Override
+                public String deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) {
+                    return json.isJsonNull() ? "" : json.getAsString();
+                }
+            })
+            .create();
+
     public static Proxy parseProxyLink(String link) throws Exception {
         Proxy config = new Proxy();
 
@@ -42,20 +53,20 @@ public class ProxyParseHandler {
             String json = new String(Base64.getDecoder().decode(base64), StandardCharsets.UTF_8);
 
             // 解析 JSON
-            Gson gson = new Gson();
+
             JsonObject jsonObject = gson.fromJson(json, JsonObject.class);
 
-            // 填充配置
-            config.setAddress(jsonObject.get("add").getAsString());
-            config.setPort(jsonObject.get("port").getAsInt());
-            config.setUserInfo(jsonObject.get("id").getAsString()); // 使用 id 作为 userInfo
-            config.setRemark(jsonObject.get("ps").getAsString());
+            // 填充配置（处理可能为空的字段）
+            config.setAddress(jsonObject.has("add") ? jsonObject.get("add").getAsString() : "");
+            config.setPort(jsonObject.has("port") ? jsonObject.get("port").getAsInt() : 0);
+            config.setUserInfo(jsonObject.has("id") ? jsonObject.get("id").getAsString() : "");
+            config.setRemark(jsonObject.has("ps") ? jsonObject.get("ps").getAsString() : "");
 
             // 填充 VMess 专用字段
-            config.setId(jsonObject.get("id").getAsString());
-            config.setAid(jsonObject.get("aid").getAsInt());
-            config.setNet(jsonObject.get("net").getAsString());
-            config.setType(jsonObject.get("type").getAsString());
+            config.setId(jsonObject.has("id") ? jsonObject.get("id").getAsString() : "");
+            config.setAid(jsonObject.has("aid") ? jsonObject.get("aid").getAsInt() : 0);
+            config.setNet(jsonObject.has("net") ? jsonObject.get("net").getAsString() : "");
+            config.setType(jsonObject.has("type") ? jsonObject.get("type").getAsString() : "");
             config.setPath(jsonObject.has("path") ? jsonObject.get("path").getAsString() : "");
             config.setTls(jsonObject.has("tls") ? jsonObject.get("tls").getAsString() : "");
             config.setSni(jsonObject.has("sni") ? jsonObject.get("sni").getAsString() : "");
@@ -180,11 +191,6 @@ public class ProxyParseHandler {
         }
 
         String protocol = proxy.getProtocol();
-        String userInfo = proxy.getUserInfo();
-        String address = proxy.getAddress();
-        int port = proxy.getPort();
-        Map<String, String> queryParams = proxy.getQueryParams();
-        String remark = proxy.getRemark();
 
         // 根据协议生成链接
         switch (protocol) {
@@ -207,7 +213,7 @@ public class ProxyParseHandler {
     private static String toVmessLink(Proxy proxy) {
         JsonObject json = new JsonObject();
         json.addProperty("v", "2"); // 版本
-        json.addProperty("ps", proxy.getRemark()); // 备注
+        json.addProperty("ps", processRemark(proxy.getRemark())); // 处理后的备注
         json.addProperty("add", proxy.getAddress()); // 地址
         json.addProperty("port", proxy.getPort()); // 端口
         json.addProperty("id", proxy.getUserInfo()); // 用户 ID
@@ -236,7 +242,7 @@ public class ProxyParseHandler {
         link.append(formatAddress(proxy.getAddress())).append(":").append(proxy.getPort()); // 地址和端口
         link.append("?").append(buildQueryParams(proxy.getQueryParams())); // 查询参数
         if (proxy.getRemark() != null) {
-            link.append("#").append(proxy.getRemark()); // 备注
+            link.append("#").append(processRemark(proxy.getRemark())); // 处理后的备注
         }
         return link.toString();
     }
@@ -250,7 +256,7 @@ public class ProxyParseHandler {
         link.append(formatAddress(proxy.getAddress())).append(":").append(proxy.getPort()); // 地址和端口
         link.append("?").append(buildQueryParams(proxy.getQueryParams())); // 查询参数
         if (proxy.getRemark() != null) {
-            link.append("#").append(proxy.getRemark()); // 备注
+            link.append("#").append(processRemark(proxy.getRemark()));
         }
         return link.toString();
     }
@@ -264,7 +270,7 @@ public class ProxyParseHandler {
         link.append(userInfo).append("@"); // 用户信息
         link.append(formatAddress(proxy.getAddress())).append(":").append(proxy.getPort()); // 地址和端口
         if (proxy.getRemark() != null) {
-            link.append("#").append(proxy.getRemark()); // 备注
+            link.append("#").append(processRemark(proxy.getRemark())); // 处理后的备注
         }
         return link.toString();
     }
@@ -296,53 +302,11 @@ public class ProxyParseHandler {
         return params.toString();
     }
 
-
-/**    public static void main(String[] args) {
- String s = "ss://YWVzLTEyOC1nY206NjYwMWZiOTBlOWIz@127.0.0.1:443#6%E5%85%83%E9%AB%98%E9%80%9F%E6%9C%BA%E5%9C%BA%EF%BC%9Acczzuu.top\n" +
- "ss://YWVzLTEyOC1nY206NjYwMWZiOTBlOWIz@127.0.0.1:443#%E9%87%8D%E5%BA%A6%E7%94%A8%E6%88%B7%E6%8E%A8%E8%8D%90%E4%BD%BF%E7%94%A8%E6%9C%BA%E5%9C%BA\n" +
- "ss://YWVzLTEyOC1nY206NjYwMWZiOTBlOWIz@127.0.0.1:443#%E5%85%8D%E8%B4%B9%E8%8A%82%E7%82%B9%E5%8F%AF%E8%83%BD%E4%BC%9A%E6%B3%84%E6%BC%8F%E8%AE%BF%E9%97%AE%E8%AE%B0%E5%BD%95\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.127:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_1\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.182:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_2\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.206:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD-%3E%F0%9F%87%BA%F0%9F%87%B8_US_%E7%BE%8E%E5%9B%BD_1\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.141:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_3\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.47:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_4\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.97:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_5\n" +
- "vless://27fdbffe-67a6-4012-fa3e-8ab349ec0a91@81.31.250.218:43851?security=none&type=ws&encryption=none&type=ws&path=%2F&headerType=none#%F0%9F%87%AE%F0%9F%87%B7_IR_%E4%BC%8A%E6%9C%97-%3E%F0%9F%87%BA%F0%9F%87%B8_US_%E7%BE%8E%E5%9B%BD\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.162:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_6\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.143:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD-%3E%F0%9F%87%BA%F0%9F%87%B8_US_%E7%BE%8E%E5%9B%BD_2\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.172:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_7\n" +
- "trojan://576c81b6-4976-4fe3-b1a9-05a9c302e98e@192.3.130.103:443?type=grpc&sni=us10-01.iran2030.ggff.net&alpn=h2&serviceName=i8oL7PsxV002zYFTmiIeg#%F0%9F%87%BA%F0%9F%87%B8_US_%E7%BE%8E%E5%9B%BD_1\n" +
- "ss://YWVzLTI1Ni1jZmI6YW1hem9uc2tyMDU=@34.211.230.161:443#%F0%9F%87%BA%F0%9F%87%B8_US_%E7%BE%8E%E5%9B%BD-%3E%F0%9F%87%A9%F0%9F%87%B0_DK_%E4%B8%B9%E9%BA%A6\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.125:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_8\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.71:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD-%3E%F0%9F%87%BA%F0%9F%87%B8_US_%E7%BE%8E%E5%9B%BD_3\n" +
- "ss://cmM0LW1kNToxNGZGUHJiZXpFM0hEWnpzTU9yNg==@193.108.119.230:8080#%F0%9F%87%A9%F0%9F%87%AA_DE_%E5%BE%B7%E5%9B%BD\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.185:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD-%3E%F0%9F%87%BA%F0%9F%87%B8_US_%E7%BE%8E%E5%9B%BD_4\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.2:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_9\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.117:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_10\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.159:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_11\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.78:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_12\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.201:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_13\n" +
- "ss://YWVzLTI1Ni1jZmI6YW1hem9uc2tyMDU=@18.236.137.219:443#%F0%9F%87%BA%F0%9F%87%B8_US_%E7%BE%8E%E5%9B%BD_2\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.135:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_14\n" +
- "ss://YWVzLTI1Ni1jZmI6YW1hem9uc2tyMDU=@34.210.253.95:443#%F0%9F%87%BA%F0%9F%87%B8_US_%E7%BE%8E%E5%9B%BD_3\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.102:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_15\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.114:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_16\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.156:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_17\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.157:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_18\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.61:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_19\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.255:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD-%3E%F0%9F%87%BA%F0%9F%87%B8_US_%E7%BE%8E%E5%9B%BD_5\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.137:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_20\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.138:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD_21\n" +
- "vless://568279ce-dd78-4f33-9e5c-64b18c5505db@151.101.123.177:80?security=none&type=ws&host=foffmelo.com&encryption=none&type=ws&path=%2Folem%2Fws%3Fed%3D2560&sni=foffmelo.com&headerType=none#%F0%9F%87%AB%F0%9F%87%B7_FR_%E6%B3%95%E5%9B%BD-%3E%F0%9F%87%BA%F0%9F%87%B8_US_%E7%BE%8E%E5%9B%BD_6";
- String[] split = s.split("\n");
- Arrays.stream(split).forEach(c-> {
- try {
- System.out.println(ProxyParseHandler.parseProxyLink(c));
- } catch (Exception e) {
- throw new RuntimeException(e);
- }
- });
- }
- */
-
+    /**
+     * 处理备注：保留前两个汉字 + 括号内容（如果有）
+     */
+    private static String processRemark(String originalRemark) {
+        if (originalRemark == null) return null;
+        return originalRemark.replaceAll("^(..).*?(\\$[^)]*\\$)?.*$", "$1$2");
+    }
 }

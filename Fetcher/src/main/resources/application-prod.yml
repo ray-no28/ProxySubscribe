@@ -1,0 +1,19 @@
+server:
+    port: 8200
+spring:
+    application:
+        name: Fetcher
+    data:
+        redis:
+            database: 1
+            host: 10.10.10.10 #input your redis host
+            lettuce:
+                pool:
+                    enabled: true
+                    maxActive: 8
+                    maxIdle: 8
+                    maxWait: -1ms
+                    minIdle: 0
+                    timeBetweenEvictionRuns: 30000ms
+                shutdownTimeout: 100ms
+            port: 6379

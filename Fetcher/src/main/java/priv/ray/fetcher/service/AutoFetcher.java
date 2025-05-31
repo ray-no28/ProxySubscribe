@@ -5,9 +5,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import priv.ray.fetcher.fetchers.IFetchers;
 import priv.ray.fetcher.model.Proxy;
+import priv.ray.fetcher.util.LoggerUtil;
 import priv.ray.fetcher.util.RedisUtil;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 
 @Service
@@ -25,19 +27,29 @@ public class AutoFetcher {
     /**
      * 自动运行所有注册的 Fetcher，并将代理存储到 Redis 中
      */
-    @Scheduled(fixedRate = 5 * 60 * 1000) // 每 5 分钟运行一次
+    @Scheduled(fixedRate = 40 * 60 * 1000) // 每 40 分钟运行一次
     public void run() {
         List<Proxy> allProxies = new ArrayList<>();
+        int totalUniquePerFetcher = 0;
 
         // 运行所有 Fetcher
         for (IFetchers fetcher : fetchers) {
             List<Proxy> proxies = fetcher.requestProxies();
+            int uniqueCount = new HashSet<>(proxies).size(); // 当前 Fetcher 的独立 unique 数量
+            String fetcherName = fetcher.getClass().getSimpleName();
+
+            // 打印当前 Fetcher 的统计
+            LoggerUtil.logInfo(fetcherName + " 抓取独立代理数: " + uniqueCount);
+            totalUniquePerFetcher += uniqueCount;
+
             allProxies.addAll(proxies);
         }
 
         // 将代理存储到 Redis 中
         if (!allProxies.isEmpty()) {
+            allProxies = new ArrayList<>(new HashSet<>(allProxies));
             redisUtil.saveProxies("proxies", allProxies, 3600); // 设置过期时间为 1 小时
+            LoggerUtil.logInfo("-------缓存成功，数量: "+allProxies.size());
         }
     }
 
